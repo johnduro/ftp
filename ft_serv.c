@@ -13,10 +13,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <netbd.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "libft.h"
+#include "serveur.h"
 
 int		serv_error(int code)
 {
@@ -78,7 +79,7 @@ int		create_server(int port)
 t_serv		*init_serv(int port)
 {
 	t_serv			*new;
-	extern char		*environ;
+	extern char		**environ;
 
 	if ((new = (t_serv*)malloc(sizeof(t_serv))) == NULL)
 		return (NULL);
@@ -100,10 +101,13 @@ int		ft_connect(int sock, struct sockaddr_in csin, unsigned int cslen)
 	int		buf[BUFF_LEN];
 	size_t	ret;
 
-	while (ret = recv(sock, buf, BUFF_LEN - 1, 0))
+	(void)csin;
+	(void)cslen;
+	while ((ret = recv(sock, buf, BUFF_LEN - 1, 0)))
 	{
-		/* check des requests */
+		write(1, buf, ret);
 	}
+	return (0);
 }
 
 int		make_serv(t_serv *serv)
@@ -113,7 +117,7 @@ int		make_serv(t_serv *serv)
 	struct sockaddr_in	csin;
 	pid_t				pid;
 
-	while (c_sock = accept(serv->sock, (struct sockaddr *)$csin, &cslen))
+	while ((c_sock = accept(serv->sock, (struct sockaddr *)&csin, &cslen)))
 	{
 		if (c_sock == -1)
 			return (serv_error(-4));
@@ -123,6 +127,7 @@ int		make_serv(t_serv *serv)
 			return (0);
 		}
 	}
+	return (0);
 }
 
 int		main(int argc, char **argv)
@@ -138,4 +143,5 @@ int		main(int argc, char **argv)
 	if ((info = init_serv(port)) == NULL)
 		return (serv_error(-2));
 	make_serv(info);
+	return (0);
 }

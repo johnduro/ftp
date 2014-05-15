@@ -1,13 +1,3 @@
-/* ************************************************************************** */
-/* 																			  */
-/*
-/* client.c
-/* By: mle-roy <mle-roy@student.42.fr>
-/*
-/* Created: 2014/05/13 19:18:42 by mle-roy
-/* Updated: 2014/05/13 19:18:44 by mle-roy
-/*
-/* ************************************************************************** */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +8,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "libft.h"
-
+#include "serveur.h"
 
 int		client_error(int code)
 {
@@ -45,7 +35,7 @@ int		create_client(char *addr, int port)
 		ft_putstr_fd("ERROR: Connexion\n", 2);
 		return (-1);
 	}
-	ft_putstr("SUCCESS: Connexion");
+	ft_putstr("SUCCESS: Connexion\n");
 	return (sock);
 }
 
@@ -58,9 +48,26 @@ void	print_client(char *addr, char *port)
 	write(1, "\n", 1);
 }
 
+
+
 int		send_cmd(char *cmd, int sock)
 {
-	send(sock, cmd, ft_strlen(cmd));
+	while (ft_isspace(*cmd))
+		cmd++;
+	if (*cmd == '\0')
+		return (0);
+	if (ft_strequ(cmd, "ls"))
+		get_list(cmd);
+	else if (ft_strequ(cmd, "cd"))
+		change_dir(cmd);
+	else if (ft_strequ(cmd, "pwd"))
+		print_path(cmd);
+	else if (ft_strequ(cmd, "get"))
+		get_file(cmd);
+	else if (ft_strequ(cmd, "put"))
+		put_file(cmd);
+//	send(sock, cmd, ft_strlen(cmd), 0);
+	return (0);
 }
 
 int		make_client(int sock)
@@ -75,6 +82,7 @@ int		make_client(int sock)
 		buf[ret] = '\0';
 		send_cmd(buf, sock);
 	}
+	return (0);
 }
 
 int		main(int ac, char **av)
