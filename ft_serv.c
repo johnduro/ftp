@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/14 15:30:45 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/16 19:33:16 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/16 22:11:42 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,6 +17,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include "libft.h"
 #include "serveur.h"
@@ -178,19 +181,97 @@ int		quit_serv(t_serv *serv, char *cmd, int id)
 	exit(0);
 }
 
+void	error_get(int sock)
+{
+	send(sock, GET_FAIL, ft_strlen(GET_FAIL), 0);
+}
+
+int		get_file(t_serv *serv, char *cmd)
+{
+	int		fd;
+	char	**req;
+	struct stat		buf;
+	void	*data;
+
+	req = ft_strsplit(cmd, ' ');
+//	printf("ici1\n");
+/*	if (!req[1])
+	{
+		error_get(serv->sock);
+		return (0);
+		}*/
+	fd = open(req[1], O_RDONLY);
+//	printf("ici1\n");
+	if (fd == -1)
+	{
+		error_get(serv->sock);
+		return (0);
+	}
+	send(serv->sock, GET_OK, ft_strlen(GET_OK), 0);
+	fstat(fd, &buf);
+	data = mmap(0, buf.st_size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
+	send(serv->sock, data, buf.st_size, 0);
+	write(serv->sock, END_MARK, MARK_LEN);
+	return (0);
+}
+
+int		check_mark(char *buf, int ret, char *mark)
+{
+	int		i;
+
+	i = MARK_LEN - 1;
+	while (ret >= 0 && i >= 0 && buf[ret - 1] == mark[i])
+	{
+		i--;
+		ret--;
+	}
+	if (i == -1)
+		return (1);
+	return (0);
+}
+
+
+int		put_file(t_serv *serv, char *cmd)
+{
+	char	**req;
+	int		fd;
+	int		ret;
+	char	buf[BUFF_GET + 1];
+	int		flag;
+
+	flag = 0;
+	req = ft_strsplit(cmd, ' ');
+	fd = open(req[1], O_WRONLY | O_CREAT, 0666);
+	while ((ret = recv(serv->sock, buf, BUFF_GET, 0)))
+	{
+//		buf[ret] = '\0';
+		if (check_mark(buf, ret, END_MARK))
+		{
+			ret -= MARK_LEN;
+			flag++;
+		}
+		write(fd, buf, ret);
+		if (flag)
+			return (0);
+	}
+	return (0);
+}
+
 int		treat_req(t_serv *serv, char *cmd, int id)
 {
-	if (!ft_strncmp(cmd, "ls", 2))
+	if (!ft_strncmp(cmd, "ls", 2) && (cmd[2] == '\0' || cmd[2] == ' '))
 		rep_list(serv, cmd);
-	else if (!ft_strncmp(cmd, "cd", 2))
+	else if (!ft_strncmp(cmd, "cd", 2) && (cmd[2] == '\0' || cmd[2] == ' '))
 		change_dir(serv, cmd);
-	else if (!ft_strncmp(cmd, "pwd", 3))
+	else if (!ft_strncmp(cmd, "pwd", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
 		print_path(serv, cmd);
-	else if (!ft_strncmp(cmd, "quit", 4))
+	else if (!ft_strncmp(cmd, "quit", 4) && (cmd[4] == '\0' || cmd[4] == ' '))
 		quit_serv(serv, cmd, id);
-/*  else if (ft_strequ(cmd, "get"))
-  get_file(cmd);
-  else if (ft_strequ(cmd, "put"))
+	else if (!ft_strncmp(cmd, "get", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
+		get_file(serv, cmd);
+	else if (!ft_strncmp(cmd, "put", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
+		put_file(serv, cmd);
+/*  else if (ft_strequ(cmd, "put"))
   put_file(cmd);*/
 	return (0);
 }

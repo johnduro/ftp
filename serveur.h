@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/14 15:34:02 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/16 18:23:33 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/16 21:39:20 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,6 +15,7 @@
 
 # define USAGE "Usage: ./server <port>\n"
 # define BUFF_LEN 1024
+# define BUFF_GET 5000
 
 # define END_MARK " 4 2 "
 # define MARK_LEN 5

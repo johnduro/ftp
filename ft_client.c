@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/16 18:13:02 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/16 19:37:37 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/16 22:12:35 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,9 +16,12 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdio.h>
+#include <fcntl.h>
 #include "libft.h"
 #include "serveur.h"
 
@@ -64,8 +67,8 @@ int		check_mark(char *buf, int ret, char *mark)
 {
 	int		i;
 
-	i = MARK_LEN;
-	while (ret >= 0 && i >= 0 && buf[ret] == mark[i])
+	i = MARK_LEN - 1;
+	while (ret >= 0 && i >= 0 && buf[ret - 1] == mark[i])
 	{
 		i--;
 		ret--;
@@ -130,6 +133,61 @@ int		print_path(int sock, char *cmd)
 	return (0);
 }
 
+int		get_client(int sock, char *cmd)
+{
+	char	**tab;
+	int		ret;
+	char	buf[BUFF_GET + 1];
+	char	flag;
+	int		fd;
+
+	flag = 0;
+	tab = ft_strsplit(cmd, ' ');
+	send(sock, cmd, ft_strlen(cmd), 0);
+	ret = recv(sock, buf, BUFF_LEN, 0);
+	buf[ret] = '\0';
+	if (!ft_strcmp(GET_FAIL, buf))
+		return (0);
+	else if (!ft_strcmp(GET_OK, buf))
+	{
+		fd = open(tab[1], O_WRONLY | O_CREAT, 0666);
+		while ((ret = recv(sock, buf, BUFF_GET, 0)))
+		{
+//			buf[ret] = '\0';
+			if (check_mark(buf, ret, END_MARK))
+			{
+				ret -= MARK_LEN;
+				flag++;
+			}
+			write(fd, buf, ret);
+			if (flag)
+				return (0);
+		}
+	}
+	return (0);
+}
+
+int		put_client(int sock, char *cmd)
+{
+	char			**tab;
+	struct stat		buf;
+	void			*data;
+	int				fd;
+
+	tab = ft_strsplit(cmd, ' ');
+	if (!tab[1])
+		return (0);
+	fd = open(tab[1], O_RDONLY);
+	if (fd == -1)
+		return (0);
+	send(sock, cmd, ft_strlen(cmd), 0);
+	fstat(fd, &buf);
+	data = mmap(0, buf.st_size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
+	send(sock, data, buf.st_size, 0);
+	write(sock, END_MARK, MARK_LEN);
+	return (0);
+}
+
 int		send_cmd(char *cmd, int sock)
 {
 //	char	*cmd_2;
@@ -146,6 +204,10 @@ int		send_cmd(char *cmd, int sock)
 		print_path(sock, cmd);
 	else if (!ft_strncmp(cmd, "quit", 4))
 		quit_client(sock, cmd);
+	else if (!ft_strncmp(cmd, "get", 3))
+		get_client(sock, cmd);
+	else if (!ft_strncmp(cmd, "put", 3))
+		put_client(sock, cmd);
 /*	else if (ft_strequ(cmd, "get"))
 		get_file(cmd);
 	else if (ft_strequ(cmd, "put"))
