@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/14 15:30:45 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/14 18:16:38 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/16 19:33:16 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,8 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/wait.h>
+#include <stdio.h>
 #include "libft.h"
 #include "serveur.h"
 
@@ -79,12 +81,13 @@ int		create_server(int port)
 t_serv		*init_serv(int port)
 {
 	t_serv			*new;
-	extern char		**environ;
+//	extern char		**environ;
 
 	if ((new = (t_serv*)malloc(sizeof(t_serv))) == NULL)
 		return (NULL);
 	new->sock = create_server(port);
-	new->pwd = ft_getenv("PWD", environ);
+//	new->pwd = ft_getenv("PWD", environ);
+	new->pwd = getcwd(NULL, 0);
 	if (new->sock == -1 || new->pwd == NULL)
 	{
 		if (new->pwd)
@@ -96,16 +99,117 @@ t_serv		*init_serv(int port)
 	return (new);
 }
 
-int		ft_connect(int sock, struct sockaddr_in csin, unsigned int cslen)
+void	check_cd(t_serv *serv)
 {
-	int		buf[BUFF_LEN];
-	size_t	ret;
-
-	(void)csin;
-	(void)cslen;
-	while ((ret = recv(sock, buf, BUFF_LEN - 1, 0)))
+	if (!ft_strncmp(serv->root, serv->pwd, ft_strlen(serv->root)))
+		return ;
+	else
 	{
+		chdir(serv->root);
+		free(serv->pwd);
+		serv->pwd = getcwd(NULL, 0);
+	}
+}
+
+int		change_dir(t_serv *serv, char *cmd)
+{
+	char	**tab;
+	char	*tmp;
+
+	tab = ft_strsplit(cmd, ' ');
+	if (!tab[1])
+	{
+		chdir(serv->root);
+		free(serv->pwd);
+		serv->pwd = getcwd(NULL, 0);
+	}
+	else
+	{
+		tmp = ft_strjoinwsep(serv->pwd, tab[1], '/');
+		chdir(tmp);
+		free(tmp);
+		free(serv->pwd);
+		serv->pwd = getcwd(NULL, 0);
+		check_cd(serv);
+	}
+	return (0);
+}
+
+int		rep_list(t_serv *serv, char *cmd)
+{
+	char		**tmp;
+	int			pid;
+
+	tmp = ft_strsplit(cmd, ' ');
+	if ((pid = fork()) == 0)
+	{
+		dup2(serv->sock, 1);
+		dup2(serv->sock, 2);
+		close(serv->sock);
+		execv("/bin/ls", tmp);
+		exit(-1);
+	}
+	wait4(pid, NULL, 0, NULL);
+	write(serv->sock, " 4 2 ", 5);
+	ft_tabfree(&tmp);
+	return (0);
+}
+
+int		print_path(t_serv *serv, char *cmd)
+{
+	int		i;
+
+	i = 0;
+	(void)cmd;
+	while (serv->root[i])
+		i++;
+	if (serv->pwd[i] == '\0')
+		send(serv->sock, "/", 1, 0);
+	else
+		send(serv->sock, &(serv->pwd[i]), (ft_strlen(serv->pwd) - i), 0);
+	return (0);
+}
+
+int		quit_serv(t_serv *serv, char *cmd, int id)
+{
+	(void)cmd;
+	printf("USER [%d] is disconnecting\n", id);
+	send(serv->sock, "SUCCESS DISCONNECT\n", 19, 0);
+	exit(0);
+}
+
+int		treat_req(t_serv *serv, char *cmd, int id)
+{
+	if (!ft_strncmp(cmd, "ls", 2))
+		rep_list(serv, cmd);
+	else if (!ft_strncmp(cmd, "cd", 2))
+		change_dir(serv, cmd);
+	else if (!ft_strncmp(cmd, "pwd", 3))
+		print_path(serv, cmd);
+	else if (!ft_strncmp(cmd, "quit", 4))
+		quit_serv(serv, cmd, id);
+/*  else if (ft_strequ(cmd, "get"))
+  get_file(cmd);
+  else if (ft_strequ(cmd, "put"))
+  put_file(cmd);*/
+	return (0);
+}
+
+int		ft_connect(t_serv *serv, int id)
+{
+	char		buf[BUFF_LEN + 1];
+	size_t		ret;
+
+	while ((ret = recv(serv->sock, buf, BUFF_LEN, 0)))
+	{
+		buf[ret] = '\0';
+		write(1, "[Client: ", 9);
+		ft_putnbr(id);
+		write(1, "] ", 2);
+		ft_putstr("RECV: ");
 		write(1, buf, ret);
+		write(1, "\n", 1);
+		treat_req(serv, buf, id);
 	}
 	return (0);
 }
@@ -116,16 +220,20 @@ int		make_serv(t_serv *serv)
 	unsigned int		cslen;
 	struct sockaddr_in	csin;
 	pid_t				pid;
+	int					id;
 
+	id = 1;
 	while ((c_sock = accept(serv->sock, (struct sockaddr *)&csin, &cslen)))
 	{
 		if (c_sock == -1)
 			return (serv_error(-4));
 		if ((pid = fork()) == 0)
 		{
-			ft_connect(c_sock, csin, cslen);
+			serv->sock = c_sock;
+			ft_connect(serv, id);
 			return (0);
 		}
+		id++;
 	}
 	return (0);
 }
