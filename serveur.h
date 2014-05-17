@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/14 15:34:02 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/16 21:39:20 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/17 21:07:47 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,8 +31,8 @@
 ** CD
 */
 
-# define CD_OK "202 CWD"
-# define CD_FAIL "502 CWD"
+# define CD_OK "SUCCESS changing directory"
+# define CD_FAIL "ERROR changing directory"
 
 /*
 ** PWD
@@ -57,20 +57,14 @@
 # define PUT_OK "205 PUT"
 # define PUT_FAIL "505 PUT"
 
-/*
-typedef struct			s_cnx
-{
-	char				code[3];
-	char				str[512];
-	void				*data;
-}						t_cnx;
-*/
-
 typedef struct			s_serv
 {
 	int					sock;
 	char				*pwd;
 	char				*root;
 }						t_serv;
+
+int						sock_to_file(int sock, int fd);
+int						file_to_sock(int sock, int fd);
 
 #endif

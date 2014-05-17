@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/16 18:13:02 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/16 22:12:35 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/17 21:03:13 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,6 +29,12 @@ int		client_error(int code)
 {
 	if (code == -1)
 		ft_putstr("Usage ./client <addr> <port>\n");
+	if (code == -2)
+		ft_putstr("ERROR: please use me right... \"put _FILE_\"\n");
+	if (code == -3)
+		ft_putstr("ERROR: Could not open file\n");
+	if (code == -4)
+		ft_putstr("ERROR: please use me right... \"get _FILE_\"\n");
 	return (code);
 }
 
@@ -41,7 +47,7 @@ int		create_client(char *addr, int port)
 	proto = getprotobyname("tcp");
 	if (proto == 0)
 		return (-1);
-	sock = socket(PF_INET, SOCK_STREAM, proto->p_proto );
+	sock = socket(PF_INET, SOCK_STREAM, proto->p_proto);
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(port);
 	sin.sin_addr.s_addr = inet_addr(addr);
@@ -80,30 +86,21 @@ int		check_mark(char *buf, int ret, char *mark)
 
 int		get_list(int sock, char *cmd)
 {
-	int		ret;
-	char	buf[BUFF_LEN + 1];
-	int		flag;
-
-	flag = 0;
 	send(sock, cmd, ft_strlen(cmd), 0);
-	while ((ret = recv(sock, buf, BUFF_LEN, 0)))
-	{
-		buf[ret] = '\0';
-		if (check_mark(buf, ret, END_MARK))
-		{
-			ret -= MARK_LEN;
-			flag++;
-		}
-		write(1, buf, ret);
-		if (flag)
-			return (0);
-	}
+	sock_to_file(sock, 1);
 	return (0);
 }
 
 int		change_dir(int sock, char *cmd)
 {
+	char	buf[BUFF_LEN + 1];
+	int		ret;
+
+	ret = 0;
 	send(sock, cmd, ft_strlen(cmd), 0);
+	ret = recv(sock, buf, BUFF_LEN, 0);
+	write(1, buf, ret);
+	write(1, "\n", 1);
 	return (0);
 }
 
@@ -138,83 +135,65 @@ int		get_client(int sock, char *cmd)
 	char	**tab;
 	int		ret;
 	char	buf[BUFF_GET + 1];
-	char	flag;
 	int		fd;
 
-	flag = 0;
 	tab = ft_strsplit(cmd, ' ');
+	if (!tab[1])
+		return (client_error(-4));
 	send(sock, cmd, ft_strlen(cmd), 0);
 	ret = recv(sock, buf, BUFF_LEN, 0);
 	buf[ret] = '\0';
 	if (!ft_strcmp(GET_FAIL, buf))
+	{
+		printf("ERROR: You failed to receive the file: %s\n", tab[1]);
 		return (0);
+	}
 	else if (!ft_strcmp(GET_OK, buf))
 	{
+		printf("SUCCESS: Receiving file: %s\n", tab[1]);
 		fd = open(tab[1], O_WRONLY | O_CREAT, 0666);
-		while ((ret = recv(sock, buf, BUFF_GET, 0)))
-		{
-//			buf[ret] = '\0';
-			if (check_mark(buf, ret, END_MARK))
-			{
-				ret -= MARK_LEN;
-				flag++;
-			}
-			write(fd, buf, ret);
-			if (flag)
-				return (0);
-		}
+		sock_to_file(sock, fd);
 	}
+	ft_tabfree(&tab);
 	return (0);
 }
 
 int		put_client(int sock, char *cmd)
 {
 	char			**tab;
-	struct stat		buf;
-	void			*data;
 	int				fd;
 
 	tab = ft_strsplit(cmd, ' ');
 	if (!tab[1])
-		return (0);
+		return (client_error(-2));
 	fd = open(tab[1], O_RDONLY);
 	if (fd == -1)
-		return (0);
+		return (client_error(-3));
 	send(sock, cmd, ft_strlen(cmd), 0);
-	fstat(fd, &buf);
-	data = mmap(0, buf.st_size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0);
-	send(sock, data, buf.st_size, 0);
-	write(sock, END_MARK, MARK_LEN);
+	file_to_sock(sock, fd);
+	printf("SUCCES: file %s has been sent to server\n", tab[1]);
+	ft_tabfree(&tab);
 	return (0);
 }
 
 int		send_cmd(char *cmd, int sock)
 {
-//	char	*cmd_2;
 	while (ft_isspace(*cmd))
 		cmd++;
 	if (*cmd == '\0')
 		return (0);
-//	cmd_2 = ft_strtrim(cmd);
-	if (!ft_strncmp(cmd, "ls", 2))
+	if (!ft_strncmp(cmd, "ls", 2) && (cmd[2] == '\0' || cmd[2] == ' '))
 		get_list(sock, cmd);
-	else if (!ft_strncmp(cmd, "cd", 2))
+	else if (!ft_strncmp(cmd, "cd", 2) && (cmd[2] == '\0' || cmd[2] == ' '))
 		change_dir(sock, cmd);
-	else if (!ft_strncmp(cmd, "pwd", 3))
+	else if (!ft_strncmp(cmd, "pwd", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
 		print_path(sock, cmd);
-	else if (!ft_strncmp(cmd, "quit", 4))
+	else if (!ft_strncmp(cmd, "quit", 4) && (cmd[4] == '\0' || cmd[4] == ' '))
 		quit_client(sock, cmd);
-	else if (!ft_strncmp(cmd, "get", 3))
+	else if (!ft_strncmp(cmd, "get", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
 		get_client(sock, cmd);
-	else if (!ft_strncmp(cmd, "put", 3))
+	else if (!ft_strncmp(cmd, "put", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
 		put_client(sock, cmd);
-/*	else if (ft_strequ(cmd, "get"))
-		get_file(cmd);
-	else if (ft_strequ(cmd, "put"))
-	put_file(cmd);*/
-//	if ((send(sock, cmd, ft_strlen(cmd), 0)) == -1)
-//		ft_putstr("yolo\n");
-//	free(cmd_2);
 	return (0);
 }
 

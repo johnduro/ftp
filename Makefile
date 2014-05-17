@@ -6,7 +6,7 @@
 #    By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2014/05/16 15:00:18 by mle-roy           #+#    #+#              #
-#    Updated: 2014/05/16 15:26:23 by mle-roy          ###   ########.fr        #
+#    Updated: 2014/05/17 19:41:13 by mle-roy          ###   ########.fr        #
 #                                                                              #
 #******************************************************************************#
 
@@ -14,9 +14,9 @@ NAME_Serv = serveur
 
 NAME_Client = client
 
-SRC_S = ft_serv.c
+SRC_S = ft_serv.c sock_to_file.c
 
-SRC_C = ft_client.c
+SRC_C = ft_client.c sock_to_file.c
 
 OBJ_S = $(SRC_S:.c=.o)
 
