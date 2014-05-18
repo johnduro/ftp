@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/14 15:30:45 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/17 21:05:54 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/18 19:10:52 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -37,197 +37,14 @@ int		serv_error(int code)
 	return (code);
 }
 
-char		*ft_getenv(char *var, char **env)
-{
-	char	**tmp;
-	char	*value;
-	int		len;
-
-	value = NULL;
-	tmp = env;
-	while (*tmp)
-	{
-		if ((ft_strnequ(*tmp, var, (len = ft_strlen(var))) == 1))
-		{
-			if ((*tmp)[len + 1] == '=')
-				len++;
-			value = ft_strdup((*tmp) + len + 1);
-			return (value);
-		}
-		tmp++;
-	}
-	return (value);
-}
-
-int		create_server(int port)
-{
-	int					sock;
-	struct protoent		*proto;
-	struct sockaddr_in	sin;
-
-	proto = getprotobyname("tcp");
-	if (proto == 0)
-		return (-1);
-	sock = socket(PF_INET, SOCK_STREAM, proto->p_proto);
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(port);
-	sin.sin_addr.s_addr = htonl(INADDR_ANY);
-	if (bind(sock, (const struct sockaddr *)&sin, sizeof(sin)) == -1)
-	{
-		ft_putstr("Bind error \n");
-		return (-1);
-	}
-	listen(sock, 42);
-	return (sock);
-}
-
-t_serv		*init_serv(int port)
-{
-	t_serv			*new;
-
-	if ((new = (t_serv*)malloc(sizeof(t_serv))) == NULL)
-		return (NULL);
-	new->sock = create_server(port);
-	new->pwd = getcwd(NULL, 0);
-	if (new->sock == -1 || new->pwd == NULL)
-	{
-		if (new->pwd)
-			free(new->pwd);
-		free(new);
-		return (NULL);
-	}
-	new->root = ft_strdup(new->pwd);
-	return (new);
-}
-
-int		check_cd(t_serv *serv)
-{
-	if (!ft_strncmp(serv->root, serv->pwd, ft_strlen(serv->root)))
-		return (1);
-	else
-	{
-		chdir(serv->root);
-		free(serv->pwd);
-		serv->pwd = getcwd(NULL, 0);
-		send(serv->sock, CD_FAIL, ft_strlen(CD_OK), 0);
-	}
-	return (0);
-}
-
-void	cd_to_root(t_serv *serv)
-{
-	chdir(serv->root);
-	free(serv->pwd);
-	serv->pwd = getcwd(NULL, 0);
-	send(serv->sock, CD_OK, ft_strlen(CD_OK), 0);
-}
-
-int		change_dir(t_serv *serv, char *cmd)
-{
-	char	**tab;
-	char	*tmp;
-
-	tab = ft_strsplit(cmd, ' ');
-	if (!tab[1])
-		cd_to_root(serv);
-	else
-	{
-		tmp = ft_strjoinwsep(serv->pwd, tab[1], '/');
-		if (chdir(tmp) == -1)
-		{
-			free(tmp);
-			send(serv->sock, CD_FAIL, ft_strlen(CD_FAIL), 0);
-			return (0);
-		}
-		free(tmp);
-		free(serv->pwd);
-		serv->pwd = getcwd(NULL, 0);
-		if (check_cd(serv))
-			send(serv->sock, CD_OK, ft_strlen(CD_OK), 0);
-	}
-	return (0);
-}
-
-int		rep_list(t_serv *serv, char *cmd)
-{
-	char		**tmp;
-	int			pid;
-
-	tmp = ft_strsplit(cmd, ' ');
-	if ((pid = fork()) == 0)
-	{
-		dup2(serv->sock, 1);
-		dup2(serv->sock, 2);
-		close(serv->sock);
-		execv("/bin/ls", tmp);
-		exit(-1);
-	}
-	wait4(pid, NULL, 0, NULL);
-	write(serv->sock, " 4 2 ", 5);
-	ft_tabfree(&tmp);
-	return (0);
-}
-
-int		print_path(t_serv *serv, char *cmd)
-{
-	int		i;
-
-	i = 0;
-	(void)cmd;
-	while (serv->root[i])
-		i++;
-	if (serv->pwd[i] == '\0')
-		send(serv->sock, "/", 1, 0);
-	else
-		send(serv->sock, &(serv->pwd[i]), (ft_strlen(serv->pwd) - i), 0);
-	return (0);
-}
-
-int		quit_serv(t_serv *serv, char *cmd, int id)
-{
-	(void)cmd;
-	printf("CLIENT [%d] is disconnecting\n", id);
-	send(serv->sock, "SUCCESS DISCONNECT\n", 19, 0);
-	exit(0);
-}
-
-int		get_file(t_serv *serv, char *cmd)
-{
-	int		fd;
-	char	**req;
-
-	req = ft_strsplit(cmd, ' ');
-	fd = open(req[1], O_RDONLY);
-	if (fd == -1)
-	{
-		send(serv->sock, GET_FAIL, ft_strlen(GET_FAIL), 0);
-		return (0);
-	}
-	send(serv->sock, GET_OK, ft_strlen(GET_OK), 0);
-	file_to_sock(serv->sock, fd);
-	ft_tabfree(&req);
-	return (0);
-}
-
-int		put_file(t_serv *serv, char *cmd)
-{
-	char	**req;
-	int		fd;
-
-	req = ft_strsplit(cmd, ' ');
-	fd = open(req[1], O_WRONLY | O_CREAT, 0666);
-	sock_to_file(serv->sock, fd);
-	return (0);
-}
-
 int		treat_req(t_serv *serv, char *cmd, int id)
 {
 	if (!ft_strncmp(cmd, "ls", 2) && (cmd[2] == '\0' || cmd[2] == ' '))
 		rep_list(serv, cmd);
 	else if (!ft_strncmp(cmd, "cd", 2) && (cmd[2] == '\0' || cmd[2] == ' '))
-		change_dir(serv, cmd);
+		change_dir_serv(serv, cmd);
 	else if (!ft_strncmp(cmd, "pwd", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
-		print_path(serv, cmd);
+		print_path_serv(serv, cmd);
 	else if (!ft_strncmp(cmd, "quit", 4) && (cmd[4] == '\0' || cmd[4] == ' '))
 		quit_serv(serv, cmd, id);
 	else if (!ft_strncmp(cmd, "get", 3) && (cmd[3] == '\0' || cmd[3] == ' '))

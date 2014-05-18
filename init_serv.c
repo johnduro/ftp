@@ -1,32 +1,25 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   client.c                                           :+:      :+:    :+:   */
+/*   init_serv.c                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2014/05/13 19:18:42 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/13 19:18:44 by mle-roy          ###   ########.fr       */
+/*   Created: 2014/05/18 18:32:15 by mle-roy           #+#    #+#             */
+/*   Updated: 2014/05/18 18:55:17 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include "serveur.h"
+#include "libft.h"
 
-
-void	usage(char *str)
-{
-	printf("Usage %s <addr> <port>\n", str);
-	exit (-1);
-}
-
-int		create_client(char *addr, int port)
+static int		create_server(int port)
 {
 	int						sock;
 	struct protoent			*proto;
@@ -35,28 +28,34 @@ int		create_client(char *addr, int port)
 	proto = getprotobyname("tcp");
 	if (proto == 0)
 		return (-1);
-	sock = socket(PF_INET, SOCK_STREAM, proto->p_proto );
+	sock = socket(PF_INET, SOCK_STREAM, proto->p_proto);
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(port);
-	sin.sin_addr.s_addr = inet_addr(addr);
-	if (connect(sock, (const struct sockaddr *)&sin, sizeof(sin)) == -1)
+	sin.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (bind(sock, (const struct sockaddr *)&sin, sizeof(sin)) == -1)
 	{
-		printf("Connect error \n");
-		exit(2);
+		ft_putstr("Bind error\n");
+		return (-1);
 	}
+	listen(sock, 42);
 	return (sock);
 }
 
-int		main(int ac, char **av)
+t_serv			*init_serv(int port)
 {
-	int						port;
-	int						sock;
+	t_serv					*new;
 
-	if (ac != 3)
-		usage(av[0]);
-	port = atoi(av[2]);
-	sock = create_client(av[1], port);
-	write(sock, "bonjour\n", 8);
-	close(sock);
-	return (0);
+	if ((new = (t_serv*)malloc(sizeof(t_serv))) == NULL)
+		return (NULL);
+	new->sock = create_server(port);
+	new->pwd = getcwd(NULL, 0);
+	if (new->sock == -1 || new->pwd == NULL)
+	{
+		if (new->pwd)
+			free(new->pwd);
+		free(new);
+		return (NULL);
+	}
+	new->root = ft_strdup(new->pwd);
+	return (new);
 }

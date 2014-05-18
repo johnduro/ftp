@@ -6,7 +6,7 @@
 /*   By: mle-roy <mle-roy@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/05/16 18:13:02 by mle-roy           #+#    #+#             */
-/*   Updated: 2014/05/17 21:03:13 by mle-roy          ###   ########.fr       */
+/*   Updated: 2014/05/18 19:34:19 by mle-roy          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -53,130 +53,14 @@ int		create_client(char *addr, int port)
 	sin.sin_addr.s_addr = inet_addr(addr);
 	if (connect(sock, (const struct sockaddr *)&sin, sizeof(sin)) == -1)
 	{
-		ft_putstr_fd("ERROR: Connexion\n", 2);
+		ft_putstr_fd("ERROR: Connection\n", 2);
 		return (-1);
 	}
-	ft_putstr("SUCCESS: Connexion\n");
+	ft_putstr("SUCCESS: Connection\n");
 	return (sock);
 }
 
-void	print_client(char *addr, char *port)
-{
-	ft_putstr("Trying to connect to ");
-	ft_putstr(addr);
-	ft_putstr(" trought port ");
-	ft_putstr(port);
-	write(1, "\n", 1);
-}
-
-int		check_mark(char *buf, int ret, char *mark)
-{
-	int		i;
-
-	i = MARK_LEN - 1;
-	while (ret >= 0 && i >= 0 && buf[ret - 1] == mark[i])
-	{
-		i--;
-		ret--;
-	}
-	if (i == -1)
-		return (1);
-	return (0);
-}
-
-int		get_list(int sock, char *cmd)
-{
-	send(sock, cmd, ft_strlen(cmd), 0);
-	sock_to_file(sock, 1);
-	return (0);
-}
-
-int		change_dir(int sock, char *cmd)
-{
-	char	buf[BUFF_LEN + 1];
-	int		ret;
-
-	ret = 0;
-	send(sock, cmd, ft_strlen(cmd), 0);
-	ret = recv(sock, buf, BUFF_LEN, 0);
-	write(1, buf, ret);
-	write(1, "\n", 1);
-	return (0);
-}
-
-int		quit_client(int sock, char *cmd)
-{
-	char	buf[BUFF_LEN + 1];
-	int		ret;
-
-	ret = 0;
-	send(sock, cmd, ft_strlen(cmd), 0);
-	ret = recv(sock, buf, BUFF_LEN, 0);
-	write(1, buf, ret);
-	exit(0);
-	return (0);
-}
-
-int		print_path(int sock, char *cmd)
-{
-	int		ret;
-	char	buf[BUFF_LEN + 1];
-
-	ret = 0;
-	send(sock, cmd, ft_strlen(cmd), 0);
-	ret = recv(sock, buf, BUFF_LEN, 0);
-	write(1, buf, ret);
-	write(1, "\n", 1);
-	return (0);
-}
-
-int		get_client(int sock, char *cmd)
-{
-	char	**tab;
-	int		ret;
-	char	buf[BUFF_GET + 1];
-	int		fd;
-
-	tab = ft_strsplit(cmd, ' ');
-	if (!tab[1])
-		return (client_error(-4));
-	send(sock, cmd, ft_strlen(cmd), 0);
-	ret = recv(sock, buf, BUFF_LEN, 0);
-	buf[ret] = '\0';
-	if (!ft_strcmp(GET_FAIL, buf))
-	{
-		printf("ERROR: You failed to receive the file: %s\n", tab[1]);
-		return (0);
-	}
-	else if (!ft_strcmp(GET_OK, buf))
-	{
-		printf("SUCCESS: Receiving file: %s\n", tab[1]);
-		fd = open(tab[1], O_WRONLY | O_CREAT, 0666);
-		sock_to_file(sock, fd);
-	}
-	ft_tabfree(&tab);
-	return (0);
-}
-
-int		put_client(int sock, char *cmd)
-{
-	char			**tab;
-	int				fd;
-
-	tab = ft_strsplit(cmd, ' ');
-	if (!tab[1])
-		return (client_error(-2));
-	fd = open(tab[1], O_RDONLY);
-	if (fd == -1)
-		return (client_error(-3));
-	send(sock, cmd, ft_strlen(cmd), 0);
-	file_to_sock(sock, fd);
-	printf("SUCCES: file %s has been sent to server\n", tab[1]);
-	ft_tabfree(&tab);
-	return (0);
-}
-
-int		send_cmd(char *cmd, int sock)
+int		send_cmd(char *cmd, int sock, t_env *env)
 {
 	while (ft_isspace(*cmd))
 		cmd++;
@@ -194,20 +78,25 @@ int		send_cmd(char *cmd, int sock)
 		get_client(sock, cmd);
 	else if (!ft_strncmp(cmd, "put", 3) && (cmd[3] == '\0' || cmd[3] == ' '))
 		put_client(sock, cmd);
+	else
+		send_cmd_bonus(cmd, sock, env);
 	return (0);
 }
 
 int		make_client(int sock)
 {
-	int		ret;
-	char	buf[BUFF_LEN + 1];
+	int				ret;
+	char			buf[BUFF_LEN + 1];
+	t_env			*env;
+	extern char		**environ;
 
+	env = ft_create_env(environ);
 	while (42)
 	{
 		write(1, "$> ", 3);
 		ret = read(0, buf, BUFF_LEN);
 		buf[ret - 1] = '\0';
-		send_cmd(buf, sock);
+		send_cmd(buf, sock, env);
 	}
 	return (0);
 }
